@@ -1,0 +1,27 @@
+[workspace]
+authors = ["Justus Magin <keewis@posteo.de>"]
+channels = ["conda-forge"]
+name = "slurm-client"
+platforms = ["linux-64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+
+[feature.py313.dependencies]
+python = "3.13.*"
+
+[feature.docs.dependencies]
+sphinx = "*"
+furo = "*"
+
+[feature.dev.dependencies]
+black = "*"
+pyinstrument = "*"
+ipython = "*"
+ipdb = "*"
+
+[environments]
+docs = ["docs", "py313"]
+default = ["dev", "py313"]
