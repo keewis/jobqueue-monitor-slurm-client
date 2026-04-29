@@ -8,6 +8,15 @@ version = "0.1.0"
 [tasks]
 
 [dependencies]
+asyncssh = ">=2.22.0,<3"
+httpx = ">=0.28.1,<0.29"
+h2 = ">=4.3.0,<5"
+socksio = ">=1.0.0,<2"
+textual = ">=8.2.4,<9"
+rich-click = ">=1.9.7,<2"
+
+[pypi-dependencies]
+slurm-client = { path = ".", editable = true }
 
 [feature.py313.dependencies]
 python = "3.13.*"
@@ -17,11 +26,16 @@ sphinx = "*"
 furo = "*"
 
 [feature.dev.dependencies]
-black = "*"
+black = ">=26.3.1,<27"
 pyinstrument = "*"
-ipython = "*"
+ipython = ">=9.13.0,<10"
 ipdb = "*"
+isort = ">=8.0.1,<9"
+textual-dev = ">=1.8.0,<2"
+
+[feature.py314.dependencies]
+python = "3.14.*"
 
 [environments]
 docs = ["docs", "py313"]
-default = ["dev", "py313"]
+default = ["dev", "py314"]
