@@ -1,15 +1,36 @@
+from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, TypedDict
 
 from textual.message import Message
 
+from slurm_client.rest_api.nodes import parse_node_list
 from slurm_client.rest_api.request import request
+from slurm_client.rest_api.resources import (
+    ResourceDict,
+    ResourcesDict,
+    default_resources,
+    parse_resource_spec,
+    parse_resources,
+    split_value,
+)
 from slurm_client.rest_api.table_message import TableContentFetched
 
 
 @dataclass
 class PartitionListMessage(Message):
     partitions: list[dict[str, Any]]
+
+
+@dataclass
+class PartitionDetails(Message):
+    name: str
+    alternate: str
+
+    states: list[str]
+
+    nodes: list[str]
+    tracked_resources: ResourcesDict
 
 
 class PartitionSummary(TypedDict):
@@ -40,3 +61,60 @@ def partitions_summary(result: dict[str, Any]) -> TableContentFetched:
     ]
 
     return TableContentFetched("partitions", rows)
+
+
+@request.get("/slurm/{version}/partition/{partition_name}")
+def partition_details(result: dict[str, Any]) -> PartitionDetails:
+    partition = result["partitions"][0]
+
+    name = partition["name"]
+    alternate = partition["alternate"]
+    nodes = parse_node_list(partition["nodes"])
+    states = partition["partition"]["state"]
+
+    tres = parse_resources(
+        partition["tres"]["configured"],
+        "",
+    )
+
+    return PartitionDetails(
+        name=name,
+        alternate=alternate,
+        states=states,
+        nodes=nodes,
+        tracked_resources=tres,
+    )
+
+
+@request.get("/slurm/{version}/nodes")
+def resource_usage(result: dict[str, Any], partition: str) -> ResourceDict:
+    nodes = [
+        node
+        for node in result["nodes"]
+        if partition in node.get("partitions", []) and node["state"] == ["UP"]
+    ]
+
+    units = {
+        name: split_value(value)[1]
+        for name, value in default_resources.items()
+        if not value.isdigit()
+    }
+
+    used_tres = [
+        default_resources | parse_resource_spec(node["tres_used"]) for node in nodes
+    ]
+    column_wise_tres = defaultdict(lambda: 0)
+    for tres in used_tres:
+        for name, value in tres.items():
+            numeric_value, _ = split_value(value)
+            column_wise_tres[name] += numeric_value
+
+    used_gres = [parse_resource_spec(node["gres_used"]) for node in nodes]
+    column_wise_gres = defaultdict(lambda: 0)
+    for tres in used_gres:
+        for name, value in tres.items():
+            numeric_value, _ = split_value(value)
+            column_wise_gres[name] += numeric_value
+
+    combined = dict(column_wise_tres | column_wise_gres)
+    return {name: f"{value}{units.get(name, '')}" for name, value in combined.items()}
