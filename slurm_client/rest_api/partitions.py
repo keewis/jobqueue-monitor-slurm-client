@@ -1,10 +1,10 @@
 from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, TypedDict
+from typing import Any, ClassVar, TypedDict
 
 from textual.message import Message
 
-from slurm_client.rest_api.nodes import NodeSummary, parse_node_list
+from slurm_client.rest_api.nodes import NodeDetails, parse_node_list
 from slurm_client.rest_api.request import request
 from slurm_client.rest_api.resources import (
     ResourceDict,
@@ -12,14 +12,48 @@ from slurm_client.rest_api.resources import (
     default_resources,
     parse_resource_spec,
     parse_resources,
-    split_value,
 )
-from slurm_client.rest_api.table_message import TableContentFetched
 
 
 @dataclass
 class PartitionListMessage(Message):
     partitions: list[dict[str, Any]]
+
+
+class PartitionSummary(TypedDict):
+    name: str
+
+    total_nodes: int
+    total_cpus: int
+
+    states: list[str]
+
+
+@dataclass
+class Partition:
+    summary_columns: ClassVar[list[str]] = [
+        "name",
+        "total_nodes",
+        "total_cpus",
+        "states",
+    ]
+
+    name: str
+    alternate: str
+
+    states: list[str]
+
+    cpus: int
+    nodes: list[str]
+    tracked_resources: ResourceDict
+
+    def render_summary(self) -> PartitionSummary:
+        return {
+            "name": self.name,
+            "total_nodes": len(self.nodes),
+            "total_cpus": self.cpus,
+            "states": self.states,
+        }
 
 
 @dataclass
@@ -29,25 +63,29 @@ class PartitionDetails(Message):
 
     states: list[str]
 
-    nodes: list[str] | list[NodeSummary]
+    nodes: list[str] | list[NodeDetails]
     tracked_resources: ResourcesDict
 
 
-class PartitionSummary(TypedDict):
-    name: str
-    total_nodes: int
-    total_cpus: int
-    state: str
+def parse_partition(partition: dict[str, Any]) -> Partition:
+    return Partition(
+        name=partition["name"],
+        alternate=partition["alternate"],
+        states=partition["partition"]["state"],
+        cpus=partition["cpus"]["total"],
+        nodes=parse_node_list(partition["nodes"]),
+        tracked_resources=parse_resources(partition["tres"]["configured"], ""),
+    )
 
 
 @request.get("/slurm/{version}/partitions")
-def all_partitions(result: dict[str, Any]) -> PartitionListMessage:
+def all_partitions(result: dict[str, Any]) -> list[Partition]:
     partitions = result.get("partitions", [])
-    return PartitionListMessage(partitions)
+    return [parse_partition(partition) for partition in partitions]
 
 
 @request.get("/slurm/{version}/partitions")
-def partitions_summary(result: dict[str, Any]) -> TableContentFetched:
+def partitions_summary(result: dict[str, Any]) -> list[PartitionSummary]:
     partitions = result.get("partitions", [])
 
     rows = [
@@ -60,7 +98,7 @@ def partitions_summary(result: dict[str, Any]) -> TableContentFetched:
         for partition in partitions
     ]
 
-    return TableContentFetched("partitions", rows)
+    return rows
 
 
 @request.get("/slurm/{version}/partition/{partition_name}")
@@ -97,27 +135,18 @@ def resource_usage(result: dict[str, Any], partition: str) -> ResourceDict:
         )
     ]
 
-    units = {
-        name: split_value(value)[1]
-        for name, value in default_resources.items()
-        if not value.isdigit()
-    }
-
     used_tres = [
         default_resources | parse_resource_spec(node["tres_used"]) for node in nodes
     ]
     column_wise_tres = defaultdict(lambda: 0)
     for tres in used_tres:
         for name, value in tres.items():
-            numeric_value, _ = split_value(value)
-            column_wise_tres[name] += numeric_value
+            column_wise_tres[name] += value
 
     used_gres = [parse_resource_spec(node["gres_used"]) for node in nodes]
     column_wise_gres = defaultdict(lambda: 0)
     for tres in used_gres:
         for name, value in tres.items():
-            numeric_value, _ = split_value(value)
-            column_wise_gres[name] += numeric_value
+            column_wise_gres[name] += value
 
-    combined = dict(column_wise_tres | column_wise_gres)
-    return {name: f"{value}{units.get(name, '')}" for name, value in combined.items()}
+    return dict(column_wise_tres | column_wise_gres)

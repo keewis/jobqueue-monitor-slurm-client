@@ -1,8 +1,9 @@
 import datetime as dt
-from typing import Any, TypedDict
+from dataclasses import asdict, dataclass
+from typing import Any, ClassVar, TypedDict
 
+from slurm_client.rest_api.parsers import parse_datetime
 from slurm_client.rest_api.request import request
-from slurm_client.rest_api.table_message import TableContentFetched
 
 
 class JobSummary(TypedDict):
@@ -10,26 +11,46 @@ class JobSummary(TypedDict):
     user: str
     group: str
     partition: str
-    start_time: str
-    state: str
+    start_time: dt.datetime
+    state: list[str]
+
+
+@dataclass
+class Job:
+    summary_columns: ClassVar[list[str]] = [
+        "name",
+        "user",
+        "group",
+        "partition",
+        "start_time",
+        "state",
+    ]
+
+    name: str
+    user: str
+    group: str
+    partition: str
+    start_time: dt.datetime
+    state: list[str]
+
+    def render_summary(self) -> JobSummary:
+        return {k: v for k, v in asdict(self).items() if k in self.summary_columns}
 
 
 @request.get("/slurm/{version}/jobs")
-def jobs_summary(result: dict[str, Any]) -> list[JobSummary]:
+def all_jobs(result: dict[str, Any]) -> list[Job]:
     jobs = result.get("jobs", [])
 
     rows = [
-        {
-            "name": job["name"],
-            "user": job["user_name"],
-            "group": job["group_name"],
-            "partition": job["partition"],
-            "start_time": dt.datetime.fromtimestamp(
-                job["start_time"]["number"], tz=dt.UTC
-            ),
-            "state": job["job_state"][0],
-        }
+        Job(
+            name=job["name"],
+            user=job["user_name"],
+            group=job["group_name"],
+            partition=job["partition"],
+            start_time=parse_datetime(job["start_time"]),
+            state=job["job_state"],
+        )
         for job in jobs
     ]
 
-    return TableContentFetched("jobs", rows)
+    return rows

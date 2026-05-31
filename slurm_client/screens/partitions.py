@@ -5,42 +5,17 @@ from textual.containers import Horizontal, ItemGrid, Vertical
 from textual.screen import Screen
 from textual.widgets import Header, Label, ListItem, ListView, Static
 
-from slurm_client.rest_api.nodes import node_details
+from slurm_client.rest_api.nodes import all_nodes
 from slurm_client.rest_api.partitions import (
     PartitionDetails,
-    ResourcesDict,
     partition_details,
     resource_usage,
 )
-from slurm_client.rest_api.resources import split_value
 from slurm_client.screens.error import ErrorScreen, NetworkError
+from slurm_client.screens.nodes import NodeDetails
 from slurm_client.widgets.footer import SlurmClientFooter
-from slurm_client.widgets.resource import ResourceBar
+from slurm_client.widgets.resource import render_resources
 from slurm_client.widgets.table import SortableTable
-
-
-def _render_resource(name: str, total: str, used: str | None) -> ResourceBar:
-    total_value, total_units = split_value(total)
-    used_value, used_units = split_value(used)
-
-    if total_units != used_units and used not in ("", None):
-        raise ValueError(f"mismatching units ({total_units} != {used_units}")
-
-    return ResourceBar(used=used_value, total=total_value, units=total_units)
-
-
-def _render_resources(
-    resources: ResourcesDict, exclude: set[str]
-) -> dict[str, ResourceBar]:
-    total = resources["total"]
-    used = resources["used"]
-
-    return {
-        name: _render_resource(name, total[name], used.get(name))
-        for name in total
-        if name not in exclude
-    }
-
 
 node_columns = ["name", "address", "state"]
 
@@ -103,12 +78,16 @@ class PartitionDetails(Screen):
             return
         msg.tracked_resources["used"] = request.response_parser(r.json())
 
-        r = await self.app.query_api(node_details)
+        r = await self.app.query_api(all_nodes)
         if r.status_code != httpx.codes.OK:
             self.post_message(NetworkError(r))
             return
 
-        msg.nodes = node_details.response_parser(r.json(), msg.nodes)
+        msg.nodes = [
+            node
+            for node in all_nodes.response_parser(r.json())
+            if node.name in msg.nodes
+        ]
 
         self.post_message(msg)
 
@@ -125,8 +104,8 @@ class PartitionDetails(Screen):
         states.extend([ListItem(Label(state.lower())) for state in msg.states])
 
         if self.resource_widgets is None:
-            self.resource_widgets = _render_resources(
-                msg.tracked_resources, exclude={"billing"}
+            self.resource_widgets = render_resources(
+                msg.tracked_resources, exclude={"billing"}, units={"memory": "M"}
             )
             resources = self.query_one("#tres")
             for name, widget in self.resource_widgets.items():
@@ -140,12 +119,23 @@ class PartitionDetails(Screen):
 
         nodes = self.query_one("SortableTable#nodes")
         filtered_rows = [
-            [v for k, v in row.items() if k in node_columns] for row in msg.nodes
+            [getattr(node_details, col) for col in node_columns]
+            for node_details in msg.nodes
         ]
         nodes.replace_contents(filtered_rows)
 
     async def action_refresh(self) -> None:
         await self.fetch_partition_details()
+
+    async def on_data_table_row_selected(self, msg: SortableTable.RowSelected) -> None:
+        table = msg.data_table
+        if not isinstance(table, SortableTable) or table.id != "nodes":
+            return
+
+        row = table.get_row_at(msg.cursor_row)
+
+        name = row[0]
+        self.app.push_screen(NodeDetails(name))
 
     @on(NetworkError)
     async def on_network_error(self, msg: NetworkError) -> None:

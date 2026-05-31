@@ -1,0 +1,48 @@
+NodeDetails > Vertical {
+    content-align-horizontal: center;
+    margin: 0 2 0 2;
+}
+
+NodeDetails > Horizontal {
+    content-align-horizontal: center;
+    align-horizontal: center;
+    margin: 1 4 1 4;
+    height: 1;
+}
+
+ItemGrid#node-info {
+    border: round green;
+
+    grid-size: 2;
+    grid-columns: 1fr 10fr;
+}
+
+ItemGrid#node-status {
+    border: round green;
+    grid-size: 2;
+    grid-columns: 1fr 10fr;
+}
+
+ItemGrid#resources {
+    border: round green;
+    grid-size: 2;
+    grid-columns: 1fr 10fr;
+}
+
+.details {
+    height: auto;
+    width: 100%;
+
+    layout: vertical;
+}
+
+#live-usage {
+    border: round purple;
+    margin: 1 0 1 0;
+
+    height: 40%;
+}
+
+.live-usage > .plot {
+    margin: 1 2 1 2;
+}
