@@ -1,0 +1,28 @@
+JobDetails > Horizontal {
+    content-align-horizontal: center;
+    align-horizontal: center;
+    height: 1;
+    margin: 1 4 1 4;
+}
+
+.status-grid {
+    border: round green;
+}
+
+#nodes {
+    border: round green;
+    height: auto;
+    padding: 0 1 0 1;
+    margin: 1 0 1 0;
+}
+
+.nodes {
+    border: round grey;
+    margin: 1 0 1 0;
+}
+
+Label.key-column {
+    text-align: right;
+    align-horizontal: right;
+    content-align-horizontal: right;
+}

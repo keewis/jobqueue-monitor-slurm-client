@@ -12,6 +12,7 @@ from slurm_client.rest_api.jobs import all_jobs
 from slurm_client.rest_api.nodes import all_nodes
 from slurm_client.rest_api.partitions import all_partitions
 from slurm_client.rest_api.table_message import TableContentFetched
+from slurm_client.screens.jobs import JobDetails
 from slurm_client.screens.nodes import NodeDetails
 from slurm_client.screens.partitions import PartitionDetails
 from slurm_client.widgets.footer import SlurmClientFooter
@@ -29,7 +30,7 @@ class MainScreen(Screen):
 
     COLUMN_NAMES = {
         "partitions": ["name", "total_nodes", "total_cpus", "state"],
-        "jobs": ["name", "user", "group", "partition", "start_time", "state"],
+        "jobs": ["ID", "name", "user", "group", "partition", "time", "state", "reason"],
         "nodes": ["name", "address", "hostname", "state", "partitions"],
     }
 
@@ -81,10 +82,17 @@ class MainScreen(Screen):
         self.run_worker(self._refresh_current_table())
 
     def action_previous_tab(self) -> None:
+        container = self.query_one("#content")
+        if container.loading:
+            return
         tabs = self.query_one("Tabs")
         tabs.action_previous_tab()
 
     def action_next_tab(self) -> None:
+        container = self.query_one("#content")
+        if container.loading:
+            return
+
         tabs = self.query_one("Tabs")
         tabs.action_next_tab()
 
@@ -127,6 +135,8 @@ class MainScreen(Screen):
                 self.app.push_screen(PartitionDetails(name))
             case "nodes":
                 self.app.push_screen(NodeDetails(name))
+            case "jobs":
+                self.app.push_screen(JobDetails(name))
             case _:
                 # not yet implemented
                 return
