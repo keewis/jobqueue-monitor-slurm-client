@@ -1,38 +1,7 @@
-from dataclasses import dataclass
-from typing import ClassVar
-
-import httpx
 from textual.app import ComposeResult
 from textual.containers import Container, Grid
-from textual.message import Message
 from textual.screen import ModalScreen
 from textual.widgets import Button, Label
-
-
-@dataclass
-class NetworkError(Message):
-    response: httpx.Response
-
-
-@dataclass
-class FatalError(Message):
-    context: ClassVar[str]
-    reason: str
-
-    def render(self):
-        return "\n".join([self.context, "", f"[i]{self.reason}[/i]"])
-
-
-@dataclass
-class SSHError(FatalError):
-    context: ClassVar[str] = "Connecting to the ssh server failed:"
-    reason: str
-
-
-@dataclass
-class TokenError(FatalError):
-    context: ClassVar[str] = "Failed to create a token:"
-    reason: str
 
 
 class ParametrizedErrorScreen(ModalScreen):
